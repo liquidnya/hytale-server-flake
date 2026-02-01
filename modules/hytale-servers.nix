@@ -645,13 +645,13 @@ in {
                 pkgDestination="$(realpath -m "$out/$destination")"
 
                 mkdir -p "$(dirname "$pkgDestination")"
-                if [ "$method" == "symlink" ]; then
+                if [ "$method" = "symlink" ]; then
                   if [ -d "$source" ]; then
                     lndir -silent "$source" "$pkgDestination"
                   else
                     ln -sfn "$source" "$pkgDestination"
                   fi
-                elif [ "$method" == "copy" ]; then
+                elif [ "$method" = "copy" ]; then
                   cp -r "$source" "$pkgDestination"
                 fi
               }
@@ -717,7 +717,7 @@ in {
                   # if it's identical to the one that's already there, don't bother
                   if [ "$(readlink -e "$src_file")" = "$(readlink -e "$dst_file")" ]; then continue
                   # if it looks like a stale link to an old file, get rid of it
-                  elif [ ! "$(readlink "$dst_file")" == "$LINK_PATTERN" ]; then
+                  elif [ ! "$(readlink "$dst_file")" = "$LINK_PATTERN" ]; then
                     warn_skip_file "$dst_file"
                     continue
                   fi
