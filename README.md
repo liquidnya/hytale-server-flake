@@ -2,6 +2,15 @@
 
 A Nix flake that provides a module for configuring Hytale servers.
 
+## Disclaimer
+
+Since the launch of the Hytale EA, Hypixel Studios has been changing the way it
+distributes its server binaries and assets and how updates are handled. For this
+reason, the behavior of the flake might change a lot over this period. I'll do
+my best to make sure that backwards compatibility with setups using older
+versions of the flake is maintained, but please be sure to keep an eye on the
+repository for new branches and changes just in case!
+
 ## Current features
 
 - Module for configuring Hytale servers (you guessed it)
@@ -51,14 +60,14 @@ A Nix flake that provides a module for configuring Hytale servers.
 
 More options can be seen in the source.
 
-`autoUpdate` is required to be manually run on initial bootstrapping,
-due to requiring authentication. To do this run:
+`autoUpdate` is required to be manually run on initial bootstrapping, due to
+requiring authentication. To do this run:
 `systemctl start hytale-auto-downloader@release` (or
 `systemctl start hytale-auto-downloader@pre-release`), and check the journal for
 authentication instructions. `autoUpdate` currently blocks the service from
 starting while waiting for authentication, so it is not recommended to set this
-alongside `autoStart`, as this will cause Nix configuration switches and
-reboots to hang. This behaviour will be changed in the future.
+alongside `autoStart`, as this will cause Nix configuration switches and reboots
+to hang. This behaviour will be changed in the future.
 
 ## Caveats
 
