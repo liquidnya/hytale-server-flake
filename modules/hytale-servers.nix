@@ -205,13 +205,23 @@ in {
             example = "pre-release";
           };
 
-          java = {
+          java = let
+            javaWarning = ''
+              Configuring the Hytale server Java currently has no effect, due to the hardcoded behaviour
+              of the server start script. This may be fixed or removed in the future.
+            '';
+          in {
             package = mkOption {
-              type = types.package;
-              default = pkgs.javaPackages.compiler.temurin-bin.jre-25;
+              type = types.nullOr types.package;
+              default = null;
+              #default = pkgs.javaPackages.compiler.temurin-bin.jre-25;
               description = ''
                 The package to provide the JVM used by the server.
               '';
+              apply = x:
+                if (!isNull x)
+                then builtins.warn javaWarning x
+                else x;
             };
 
             jvmOpts = mkOption {
@@ -221,6 +231,10 @@ in {
                 Additional flags to pass to the JVM.
               '';
               example = "-Xms4G -Xmx8G";
+              apply = x:
+                if (x != "")
+                then builtins.warn javaWarning x
+                else x;
             };
           };
 
@@ -481,6 +495,8 @@ in {
             else serverLaunchCommand;
 
           sessionPreStart = ''
+            # prevent group users from modifying the server
+            umask 027
             if [ ! -f "${server.dataDir}/Server/HytaleServer.jar" ]; then
               cp -r "${server.assetsDir}/." "${server.dataDir}"
             fi
@@ -614,7 +630,7 @@ in {
       # |                                                             |
       # \_________________________________  __________________________/
       #                                   |/
-      system.activationScripts.linkHytaleServerFiles = let
+      system.activationScripts.updateHytaleServerFiles = let
         mkServerFilesPackage = server:
           pkgs.runCommandLocal "hytale-server-${server.name}-files" {
             nativeBuildInputs = with pkgs; [xorg.lndir];
@@ -654,6 +670,21 @@ in {
             mapAttrsToList (serverName: pkg: f enabledServers."${serverName}" pkg) serverFilesPackages
           );
 
+        migrateFiles = pkgs.writeShellApplication {
+          name = "migrate-files";
+          text = ''
+            server_dir="$1"
+            server_name="$2"
+
+            if [ -e "$server_dir/config.json" ]; then
+              echo "\`$server_name\` contains old server data, attempting to migrate" >&2
+
+              mkdir "$server_dir/Server"
+              find "$server_dir" -mindepth 1 -maxdepth 1 -path "$server_dir/Server" -prune -o -exec \
+                mv -t "$server_dir/Server" '{}' +
+            fi
+          '';
+        };
         cleanOldFiles = pkgs.writeShellApplication {
           name = "clean-old-files";
           runtimeInputs = with pkgs; [diffutils];
@@ -732,6 +763,8 @@ in {
               packageGcRootsPath = "${gcRootsPath}/${pkg.name}";
               serverConfigDir = "${server.dataDir}/Server";
             in ''
+              "${getExe migrateFiles}" "${server.dataDir}" "${server.name}"
+
               find -L "${packageGcRootsPath}" \( -type f -or -type l \) -printf '%P\0' \
                 | xargs -0 "${getExe cleanOldFiles}" "${packageGcRootsPath}" "${serverConfigDir}"
 
@@ -752,7 +785,7 @@ in {
         '';
       in {
         text = ''
-          ${getExe pkgs.sudo} -u hytale ${activateFilesScript}
+          ${getExe pkgs.sudo} -Hu hytale ${activateFilesScript}
           ${updateGcRootsScript}
         '';
       };

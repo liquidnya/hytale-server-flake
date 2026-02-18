@@ -185,5 +185,14 @@ in
         machine.succeed('cmp "/srv/hytale/foobar/Server/my very cool file with lots of spaces in its name" ${textFile1}')
         machine.succeed('cmp "/srv/hytale/foobar/Server/spatial directory/file-1" ${textFile1}')
         machine.succeed('cmp "/srv/hytale/foobar/Server/spatial directory/file-2" ${textFile2}')
+
+      with subtest('Migrate server with old directory'):
+        machine.succeed('rm -r /srv/hytale/foobar/Server')
+        machine.succeed('touch /srv/hytale/foobar/config.json')
+        machine.succeed('${symlink1}/bin/switch-to-configuration test')
+
+        # have the files been migrated to the right place?
+        machine.succeed('test -f /srv/hytale/foobar/Server/config.json')
+        machine.succeed('test -L /srv/hytale/foobar/Server/bleh')
     '';
   }
