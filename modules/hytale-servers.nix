@@ -212,16 +212,11 @@ in {
             '';
           in {
             package = mkOption {
-              type = types.nullOr types.package;
-              default = null;
-              #default = pkgs.javaPackages.compiler.temurin-bin.jre-25;
+              type = types.package;
+              default = pkgs.javaPackages.compiler.temurin-bin.jre-25;
               description = ''
                 The package to provide the JVM used by the server.
               '';
-              apply = x:
-                if (!isNull x)
-                then builtins.warn javaWarning x
-                else x;
             };
 
             jvmOpts = mkOption {
