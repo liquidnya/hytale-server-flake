@@ -60,14 +60,10 @@ repository for new branches and changes just in case!
 
 More options can be seen in the source.
 
-`autoUpdate` is required to be manually run on initial bootstrapping, due to
-requiring authentication. To do this run:
-`systemctl start hytale-auto-downloader@release` (or
-`systemctl start hytale-auto-downloader@pre-release`), and check the journal for
-authentication instructions. `autoUpdate` currently blocks the service from
-starting while waiting for authentication, so it is not recommended to set this
-alongside `autoStart`, as this will cause Nix configuration switches and reboots
-to hang. This behaviour will be changed in the future.
+Before starting the server, it's required to run `hytale-server-download` as the
+service user (`hytale` by default) once in order to fetch the server jar and
+assets. You won't need to run this again, as the server is able to update
+itself; please refer to the official Hytale docs for details.
 
 ## Caveats
 

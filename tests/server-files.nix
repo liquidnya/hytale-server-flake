@@ -123,67 +123,76 @@ in
         machine.succeed('${symlink1}/bin/switch-to-configuration test')
 
         # is the file a symlink?
-        machine.succeed('test -L /srv/hytale/foobar/bleh')
+        machine.succeed('test -L /srv/hytale/foobar/Server/bleh')
         # does it match the expected contents?
-        machine.succeed('cmp /srv/hytale/foobar/bleh ${textFile1}')
+        machine.succeed('cmp /srv/hytale/foobar/Server/bleh ${textFile1}')
 
       with subtest('Symlink file with updated contents'):
         machine.succeed('${symlink2}/bin/switch-to-configuration test')
 
         # does the file match the updated contents?
-        machine.succeed('cmp /srv/hytale/foobar/bleh ${textFile2}')
+        machine.succeed('cmp /srv/hytale/foobar/Server/bleh ${textFile2}')
 
       with subtest('Symlink file and remove old files'):
         machine.succeed('${symlink3}/bin/switch-to-configuration test')
 
         # have we got rid of the old file?
-        machine.succeed('test ! -e /srv/hytale/foobar/bleh')
+        machine.succeed('test ! -e /srv/hytale/foobar/Server/bleh')
         # does the new file match the updated contents?
-        machine.succeed('cmp /srv/hytale/foobar/bleh-2 ${textFile1}')
+        machine.succeed('cmp /srv/hytale/foobar/Server/bleh-2 ${textFile1}')
 
       with subtest('Make multiple files and remove old files'):
         machine.succeed('${copy1}/bin/switch-to-configuration test')
 
         # are the files of the correct type?
-        machine.succeed('test -L /srv/hytale/foobar/bleh')
-        machine.succeed('test ! -L /srv/hytale/foobar/bleh-2')
+        machine.succeed('test -L /srv/hytale/foobar/Server/bleh')
+        machine.succeed('test ! -L /srv/hytale/foobar/Server/bleh-2')
         # do they have the correct permissions?
-        machine.succeed('stat -c "%U %G %a" /srv/hytale/foobar/bleh-2')
-        machine.succeed('test "$(stat -c "%U %G %a" /srv/hytale/foobar/bleh-2)" = "hytale hytale 660"')
+        machine.succeed('stat -c "%U %G %a" /srv/hytale/foobar/Server/bleh-2')
+        machine.succeed('test "$(stat -c "%U %G %a" /srv/hytale/foobar/Server/bleh-2)" = "hytale hytale 660"')
         # do the files match the updated contents?
-        machine.succeed('cmp /srv/hytale/foobar/bleh ${textFile1}')
-        machine.succeed('cmp /srv/hytale/foobar/bleh-2 ${textFile2}')
+        machine.succeed('cmp /srv/hytale/foobar/Server/bleh ${textFile1}')
+        machine.succeed('cmp /srv/hytale/foobar/Server/bleh-2 ${textFile2}')
 
       with subtest('Make directory with files'):
         machine.succeed('${directory1}/bin/switch-to-configuration test')
 
         # have we got rid of the old file?
-        machine.succeed('test ! -e /srv/hytale/foobar/bleh-1')
-        machine.succeed('test ! -e /srv/hytale/foobar/bleh-2')
+        machine.succeed('test ! -e /srv/hytale/foobar/Server/bleh-1')
+        machine.succeed('test ! -e /srv/hytale/foobar/Server/bleh-2')
         # have we made the directory with the expected contents?
-        machine.succeed('test -d /srv/hytale/foobar/directory')
-        machine.succeed('cmp /srv/hytale/foobar/directory/file-1 ${textFile1}')
-        machine.succeed('cmp /srv/hytale/foobar/directory/file-2 ${textFile2}')
+        machine.succeed('test -d /srv/hytale/foobar/Server/directory')
+        machine.succeed('cmp /srv/hytale/foobar/Server/directory/file-1 ${textFile1}')
+        machine.succeed('cmp /srv/hytale/foobar/Server/directory/file-2 ${textFile2}')
 
       with subtest('Make multiple directories with files'):
         machine.succeed('${directory2}/bin/switch-to-configuration test')
 
         # have we got rid of the old file?
-        machine.succeed('test ! -e /srv/hytale/foobar/directory/bleh-1')
+        machine.succeed('test ! -e /srv/hytale/foobar/Server/directory/bleh-1')
         # do the files match the expected contents?
-        machine.succeed('test -d /srv/hytale/foobar/directory')
-        machine.succeed('cmp /srv/hytale/foobar/directory/file-1 ${textFile1}')
-        machine.succeed('cmp /srv/hytale/foobar/directory-2/file-2 ${textFile2}')
+        machine.succeed('test -d /srv/hytale/foobar/Server/directory')
+        machine.succeed('cmp /srv/hytale/foobar/Server/directory/file-1 ${textFile1}')
+        machine.succeed('cmp /srv/hytale/foobar/Server/directory-2/file-2 ${textFile2}')
 
       with subtest('Make files with spaces in their names'):
         machine.succeed('${fileWithSpaces}/bin/switch-to-configuration test')
 
         # have we got rid of the old directories?
-        machine.succeed('test ! -d /srv/hytale/foobar/directory')
-        machine.succeed('test ! -d /srv/hytale/foobar/directory-2')
+        machine.succeed('test ! -d /srv/hytale/foobar/Server/directory')
+        machine.succeed('test ! -d /srv/hytale/foobar/Server/directory-2')
         # does the file the expected contents?
-        machine.succeed('cmp "/srv/hytale/foobar/my very cool file with lots of spaces in its name" ${textFile1}')
-        machine.succeed('cmp "/srv/hytale/foobar/spatial directory/file-1" ${textFile1}')
-        machine.succeed('cmp "/srv/hytale/foobar/spatial directory/file-2" ${textFile2}')
+        machine.succeed('cmp "/srv/hytale/foobar/Server/my very cool file with lots of spaces in its name" ${textFile1}')
+        machine.succeed('cmp "/srv/hytale/foobar/Server/spatial directory/file-1" ${textFile1}')
+        machine.succeed('cmp "/srv/hytale/foobar/Server/spatial directory/file-2" ${textFile2}')
+
+      with subtest('Migrate server with old directory'):
+        machine.succeed('rm -r /srv/hytale/foobar/Server')
+        machine.succeed('touch /srv/hytale/foobar/config.json')
+        machine.succeed('${symlink1}/bin/switch-to-configuration test')
+
+        # have the files been migrated to the right place?
+        machine.succeed('test -f /srv/hytale/foobar/Server/config.json')
+        machine.succeed('test -L /srv/hytale/foobar/Server/bleh')
     '';
   }

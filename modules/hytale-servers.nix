@@ -2,6 +2,7 @@ self: {
   config,
   pkgs,
   lib,
+  modulesPath,
   ...
 }: let
   inherit
@@ -82,6 +83,13 @@ in {
         config,
         ...
       }: {
+        imports = [
+          (modulesPath + "/misc/assertions.nix")
+          (lib.mkRemovedOptionModule ["version"] "Pinning the Hytale server version is no longer supported.")
+          (lib.mkRemovedOptionModule ["acknowledgeVersionWarning"] "Pinning the Hytale server version is no longer supported.")
+          (lib.mkRemovedOptionModule ["autoUpdate"] "Updates are now handled by the server itself. Run `/help update` in your server for details.")
+        ];
+
         options = {
           enable = mkEnableOption "this Hytale server";
 
@@ -108,11 +116,7 @@ in {
 
           assetsDir = mkOption {
             type = types.str;
-            default = "${cfg.assetsDir}/${
-              if (isNull config.version)
-              then config.patchline
-              else "${config.patchline}-${config.version}"
-            }";
+            default = "${cfg.assetsDir}/${config.patchline}";
             description = ''
               The path to the server binary and assets.
             '';
@@ -189,17 +193,6 @@ in {
             example = true;
           };
 
-          autoUpdate = mkOption {
-            type = types.bool;
-            default = false;
-            description = ''
-              Whether to automatically update the Hytale server binary and assets on startup.
-              This currrently blocks startup until authentication is provided, so it is
-              not recommended to set this option alongside `autoStart`.
-            '';
-            example = true;
-          };
-
           patchline = mkOption {
             type = types.enum [
               "release"
@@ -212,33 +205,12 @@ in {
             example = "pre-release";
           };
 
-          version = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            description = ''
-              The Hytale server version to use.
-              It is highly recommended to NOT use this option as Hytale clients
-              always follow the latest version. However, this option is available
-              in case servers need to perform maintenance before upgrading.
-              - This option will only work if the asset archive and server jar for the specified
-              version have already been downloaded, as the latest version is the only one provided
-              by the Hytale CDN.
-              - This overrides `servers.<server>.patchline`, as it skips the
-              Hytale downloader stage if set.
+          java = let
+            javaWarning = ''
+              Configuring the Hytale server Java currently has no effect, due to the hardcoded behaviour
+              of the server start script. This may be fixed or removed in the future.
             '';
-            visible = false;
-          };
-
-          acknowledgeVersionWarning = mkOption {
-            type = types.bool;
-            default = false;
-            description = ''
-              Do not warn when the `version` attribute is set.
-            '';
-            visible = false;
-          };
-
-          java = {
+          in {
             package = mkOption {
               type = types.package;
               default = pkgs.javaPackages.compiler.temurin-bin.jre-25;
@@ -254,6 +226,10 @@ in {
                 Additional flags to pass to the JVM.
               '';
               example = "-Xms4G -Xmx8G";
+              apply = x:
+                if (x != "")
+                then builtins.warn javaWarning x
+                else x;
             };
           };
 
@@ -365,6 +341,91 @@ in {
         allowedUDPPorts = lists.flatten (mapAttrsToList (_: c: c.port) openedServers);
       };
 
+      environment.systemPackages = let
+        hytaleServerDownloadScript = pkgs.writeShellApplication {
+          name = "hytale-server-download";
+          runtimeInputs = with pkgs; [
+            flakePkgs.hytale-downloader
+            jq
+            unzip
+          ];
+          text = ''
+            ASSETS_DIR="${cfg.assetsDir}"
+            CREDENTIALS_PATH="${cfg.credentialsPath}"
+
+            hytale_downloader() {
+              hytale-downloader \
+                -skip-update-check \
+                -patchline "$patchline" \
+                -credentials-path "$CREDENTIALS_PATH" \
+                "$@"
+            }
+
+            request_auth() {
+              # cause the downloader to request authentication
+              hytale_downloader -print-version
+            }
+
+            try_hytale_downloader() {
+              if output="$(hytale_downloader "$@")"; then
+                echo "$output"
+              else
+                rm "$CREDENTIALS_PATH"; request_auth
+
+                hytale_downloader "$@"
+              fi
+            }
+
+            # defaults
+            patchline="release"
+
+            while getopts "p:f" arg; do
+              case "$arg" in
+                p)
+                  patchline="$OPTARG" ;;
+                f)
+                  force="about 500 newtons" ;;
+                *)
+                  echo "usage: $0 [-p patchline] [-f]" >&2
+                  exit 1 ;;
+              esac
+            done
+
+            if [ "$USER" != "${cfg.user}" ]; then
+              echo "Script must be run as the \`${cfg.user}\` user." >&2
+              exit 1
+            fi
+
+            # check if the token has expired, and refresh it if so
+            if [ -e "$CREDENTIALS_PATH" ]; then
+              auth_expires_at="$(jq .expires_at "$CREDENTIALS_PATH")"
+              current_time="$(date +%s)"
+              if [ "$current_time" -ge "$auth_expires_at" ]; then
+                rm "$CREDENTIALS_PATH"; request_auth
+              fi
+            else
+              request_auth
+            fi
+
+            game_dir="$ASSETS_DIR/$patchline"
+
+            if [ -d "$game_dir" ] && ! "$force"; then
+              echo "Server data directory already exists" >&2
+              exit 1
+            fi
+
+            download_dir="$(mktemp -d)"
+            hytale_downloader -download-path "$download_dir/assets.zip"
+
+            rm -rf "$game_dir"; mkdir -p "$game_dir"
+            unzip "$download_dir/assets.zip" -d "$game_dir"
+            rm -r "$download_dir"
+          '';
+        };
+      in [
+        hytaleServerDownloadScript
+      ];
+
       systemd.tmpfiles.rules =
         [
           "d '${dirOf cfg.credentialsPath}' 0700 ${cfg.user} ${cfg.group}"
@@ -400,120 +461,41 @@ in {
         targetServers;
 
       systemd.services = let
-        hytaleAutoDownloaderScript = pkgs.writeShellApplication {
-          name = "hytale-auto-downloader";
-          runtimeInputs = with pkgs; [
-            flakePkgs.hytale-downloader
-            jq
-            unzip
-          ];
-          text = ''
-            ASSETS_DIR="${cfg.assetsDir}"
-            CREDENTIALS_PATH="${cfg.credentialsPath}"
-
-            patchline="$1"
-
-            hytale_downloader() {
-              hytale-downloader \
-                -skip-update-check \
-                -patchline "$patchline" \
-                -credentials-path "$CREDENTIALS_PATH" \
-                "$@"
-            }
-
-            request_auth() {
-              auth_out="$(mktemp -up "$RUNTIME_DIRECTORY" auth.XXXXXX)"
-              mkfifo "$auth_out"; chmod 700 "$auth_out"
-
-              echo "Authentication needed; please read \`$auth_out\` as the \`${cfg.user}\` user"
-
-              # cause the downloader to request authentication
-              hytale_downloader -print-version > "$auth_out"
-
-              rm "$auth_out"
-            }
-
-            try_hytale_downloader() {
-              if output="$(hytale_downloader "$@")"; then
-                echo "$output"
-              else
-                rm "$CREDENTIALS_PATH"; request_auth
-
-                hytale_downloader "$@"
-              fi
-            }
-
-            # check if the token has expired, and refresh it if so
-            if [ -e "$CREDENTIALS_PATH" ]; then
-              auth_expires_at="$(jq .expires_at "$CREDENTIALS_PATH")"
-              current_time="$(date +%s)"
-              if [ "$current_time" -ge "$auth_expires_at" ]; then
-                rm "$CREDENTIALS_PATH"; request_auth
-              fi
-            else
-              request_auth
-            fi
-
-            game_version="$(try_hytale_downloader -print-version)"
-            game_dir="$ASSETS_DIR/$patchline-$game_version"
-
-            if [ ! -d "$game_dir" ]; then
-              download_dir=$(mktemp -d)
-              hytale_downloader -download-path "$download_dir/assets.zip"
-
-              mkdir -p "$game_dir"
-              unzip "$download_dir/assets.zip" -d "$game_dir"
-              rm -r "$download_dir"
-            fi
-
-            ln -sf "$patchline-$game_version" "$ASSETS_DIR/$patchline"
-          '';
-        };
-
-        hytaleAutoDownloaderService = {
-          description = "Hytale Auto-downloader Service (%I patchline)";
-
-          wants = ["network-online.target"];
-          # make service run serially, so that multiple access tokens aren't requested at the same time
-          after = ["hytale-auto-downloader@.service" "network-online.target"];
-
-          serviceConfig = {
-            Type = "oneshot";
-            ExecStart = "${getExe hytaleAutoDownloaderScript} %I";
-
-            TimeoutStartSec = "10m";
-
-            User = cfg.user;
-            Group = cfg.group;
-            StandardOutput = "journal";
-            StandardError = "journal";
-            RuntimeDirectory = "hytale-downloader";
-            RuntimeDirectoryPreserve = false;
-            RuntimeDirectoryMode = "700";
-            UMask = "0077";
-          };
-        };
-
         mkServerSessionScripts = server: let
           socketPath = "${cfg.runtimeDir}/${server.name}.sock";
           fifoPath = "${cfg.runtimeDir}/${server.name}.stdin";
           tmux = "${getExe pkgs.tmux} -S ${socketPath}";
 
+          assetsCheck = ''
+            if [ ! -f "${server.dataDir}/Server/HytaleServer.jar" ] \
+            && [ ! -d "${server.assetsDir}" ]; then
+              echo "Server data not present; please run \`hytale-server-download\` to continue" >&2
+              exit 1
+            fi
+          '';
+
+          /*
+          TODO properly port the startup script to NixOS. Currently, it does not allow us to set
+          our own JVM options, or separate the server code/assets from the data to be exposed at /srv.
+          */
           serverLaunchCommand = with server; ''
-            ${getExe java.package} \
-              -XX:AOTCache="${assetsDir}/Server/HytaleServer.aot" \
-              ${java.jvmOpts} \
-              -jar "${assetsDir}/Server/HytaleServer.jar" \
-              --assets "${assetsDir}/Assets.zip" \
-              --bind ${listenAddress}:${toString port}
+            bash -- "${dataDir}/start.sh" --bind ${listenAddress}:${toString port}
           '';
 
           sessionStart =
             if server.tmux.enable
             then ''
-              ${tmux} new-session -d "${serverLaunchCommand}"
+              ${tmux} new-session -d ${serverLaunchCommand}
             ''
             else serverLaunchCommand;
+
+          sessionPreStart = ''
+            # prevent group users from modifying the server
+            umask 027
+            if [ ! -f "${server.dataDir}/Server/HytaleServer.jar" ]; then
+              cp -r "${server.assetsDir}/." "${server.dataDir}"
+            fi
+          '';
 
           # allow the hytale group to access the tmux session
           sessionPostStart = lib.optionalString server.tmux.enable ''
@@ -532,13 +514,24 @@ in {
               while kill -0 "$1" 2>/dev/null; do sleep 1s; done
             '';
         in {
-          start = pkgs.writeShellScript "hytale-server-${server.name}-start" sessionStart;
+          startCondition = pkgs.writeShellScript "hytale-server-${server.name}-assets-check" assetsCheck;
+          start = pkgs.writeShellApplication {
+            name = "hytale-server-${server.name}-start";
+            runtimeInputs = [
+              # start.sh requires java in the path
+              server.java.package
+              # the script explicitly depends on bash rather than sh, so it's safer to pull bash
+              # in case bashisms are introduced in future versions
+              pkgs.bash
+            ];
+            text = sessionStart;
+          };
+          preStart = pkgs.writeShellScript "hytale-server-${server.name}-pre-start" sessionPreStart;
           postStart = pkgs.writeShellScript "hytale-server-${server.name}-post-start" sessionPostStart;
           stop = pkgs.writeShellScript "hytale-server-${server.name}-stop" sessionStop;
         };
 
         mkHytaleServerService = server: let
-          optionalDownloaderDependency = lib.optional (isNull server.version && server.autoUpdate) "hytale-auto-downloader@${server.patchline}.service";
           optionalSocketDependency = lib.optional (!server.tmux.enable) "hytale-server-${server.name}.socket";
 
           sessionScripts = mkServerSessionScripts server;
@@ -547,9 +540,9 @@ in {
 
           description = "Hytale Server ${server.name}";
           wantedBy = lib.mkIf server.autoStart ["default.target"];
-          requires = optionalSocketDependency ++ optionalDownloaderDependency;
+          requires = optionalSocketDependency;
           partOf = optionalSocketDependency;
-          after = ["network.target"] ++ optionalDownloaderDependency;
+          after = ["network.target"];
 
           path = with pkgs; [
             # infocmp
@@ -563,13 +556,18 @@ in {
               if server.tmux.enable
               then "forking"
               else "simple";
-            ExecStart = sessionScripts.start;
+
+            ExecCondition = sessionScripts.startCondition;
+            ExecStart = getExe sessionScripts.start;
+            ExecStartPre = sessionScripts.preStart;
             ExecStartPost = sessionScripts.postStart;
             ExecStop = "${sessionScripts.stop} $MAINPID";
+
             StandardInput =
               if server.tmux.enable
               then "null"
               else "socket";
+            /*
             StandardOutput =
               if server.tmux.enable
               then "null"
@@ -578,6 +576,9 @@ in {
               if server.tmux.enable
               then "null"
               else "journal";
+            */
+            StandardOutput = "journal";
+            StandardError = "journal";
             Restart = server.restart;
 
             User = cfg.user;
@@ -615,10 +616,7 @@ in {
           };
         };
       in
-        {
-          "hytale-auto-downloader@" = hytaleAutoDownloaderService;
-        }
-        // mapAttrs' (
+        mapAttrs' (
           _: server: nameValuePair "hytale-server-${server.name}" (mkHytaleServerService server)
         )
         cfg.servers;
@@ -627,9 +625,7 @@ in {
       # |                                                             |
       # \_________________________________  __________________________/
       #                                   |/
-      system.activationScripts.linkHytaleServerFiles = let
-        gcRootsPath = "/nix/var/nix/gcroots/hytale";
-
+      system.activationScripts.updateHytaleServerFiles = let
         mkServerFilesPackage = server:
           pkgs.runCommandLocal "hytale-server-${server.name}-files" {
             nativeBuildInputs = with pkgs; [xorg.lndir];
@@ -663,14 +659,27 @@ in {
               server.files
             )
           );
-
         serverFilesPackages = mapAttrs (_: server: mkServerFilesPackage server) enabledServers;
-
         genServerPackagesCommands = f:
           concatStrings (
             mapAttrsToList (serverName: pkg: f enabledServers."${serverName}" pkg) serverFilesPackages
           );
 
+        migrateFiles = pkgs.writeShellApplication {
+          name = "migrate-files";
+          text = ''
+            server_dir="$1"
+            server_name="$2"
+
+            if [ -e "$server_dir/config.json" ]; then
+              echo "\`$server_name\` contains old server data, attempting to migrate" >&2
+
+              mkdir "$server_dir/Server"
+              find "$server_dir" -mindepth 1 -maxdepth 1 -path "$server_dir/Server" -prune -o -exec \
+                mv -t "$server_dir/Server" '{}' +
+            fi
+          '';
+        };
         cleanOldFiles = pkgs.writeShellApplication {
           name = "clean-old-files";
           runtimeInputs = with pkgs; [diffutils];
@@ -693,7 +702,6 @@ in {
             done
           '';
         };
-
         linkFiles = pkgs.writeShellApplication {
           name = "link-files";
           runtimeInputs = with pkgs; [diffutils];
@@ -741,20 +749,25 @@ in {
           '';
         };
 
+        gcRootsPath = "/nix/var/nix/gcroots/hytale";
         activateFilesScript = pkgs.writeShellScript "make-server-files" ''
           umask 007
 
           ${genServerPackagesCommands (
-            server: pkg: ''
-              find -L "${gcRootsPath}/${pkg.name}" \( -type f -or -type l \) -printf '%P\0' \
-                | xargs -0 "${getExe cleanOldFiles}" "${gcRootsPath}/${pkg.name}" "${server.dataDir}"
+            server: pkg: let
+              packageGcRootsPath = "${gcRootsPath}/${pkg.name}";
+              serverConfigDir = "${server.dataDir}/Server";
+            in ''
+              "${getExe migrateFiles}" "${server.dataDir}" "${server.name}"
+
+              find -L "${packageGcRootsPath}" \( -type f -or -type l \) -printf '%P\0' \
+                | xargs -0 "${getExe cleanOldFiles}" "${packageGcRootsPath}" "${serverConfigDir}"
 
               find -L "${pkg}" \( -type f -or -type l \) -printf '%P\0' \
-                | xargs -0 "${getExe linkFiles}" "${pkg}" "${server.dataDir}"
+                | xargs -0 "${getExe linkFiles}" "${pkg}" "${serverConfigDir}"
             ''
           )}
         '';
-
         updateGcRootsScript = pkgs.writeShellScript "update-hytale-gc-roots" ''
           if [ -d "${gcRootsPath}" ]; then rm -rf "${gcRootsPath}"; fi
           mkdir -p "${gcRootsPath}"
@@ -767,34 +780,10 @@ in {
         '';
       in {
         text = ''
-          ${getExe pkgs.sudo} -u hytale ${activateFilesScript}
+          ${getExe pkgs.sudo} -Hu hytale ${activateFilesScript}
           ${updateGcRootsScript}
         '';
       };
-
-      warnings = let
-        versionPinnedServers =
-          attrsets.filterAttrs (
-            _: c: !isNull c.version && !c.acknowledgeVersionWarning
-          )
-          enabledServers;
-
-        autoStartingUpdatingServers =
-          attrsets.filterAttrs (
-            _: c: c.autoStart && c.autoUpdate
-          )
-          enabledServers;
-      in
-        (attrsets.mapAttrsToList (_: server: ''
-            Hytale server ${server.name} has `version` set to `${server.version}`. It is not recommended to pin the server version. Please remove this field or set
-            `acknowledgeVersionWarning = true;` in your server's attributes to disable this warning.
-          '')
-          versionPinnedServers)
-        ++ (attrsets.mapAttrsToList (_: server: ''
-            Hytale server ${server.name} has both `autoStart` and `autoUpdate` enabled. This behaviour is currently unstable, and will cause the system startup and
-            Nix configuration switches to hang. Please unset one of these options.
-          '')
-          autoStartingUpdatingServers);
     }
   );
 }
