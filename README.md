@@ -1,13 +1,9 @@
 # Hytale Server Flake
 
-> [!WARNING]
+> [!NOTE]
 >
-> Some of the flake's logic has been changed by a recent PR. Specifically, the
-> way server files are stored has been changed, and the service now relies on
-> the startup script bundled with the server zip. In theory, and in my limited
-> testing, the server should be correctly migrated, however if you have
-> previously been using this flake and you run into issues please check your
-> server data folder and see if there are any files in the wrong place.
+> I don't have the time, the patience, nor the motivation to continue with this
+> project, and as such it is now archived. Feel free to fork it.
 
 A Nix flake that provides a module for configuring Hytale servers.
 
