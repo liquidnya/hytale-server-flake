@@ -628,7 +628,7 @@ in {
       system.activationScripts.updateHytaleServerFiles = let
         mkServerFilesPackage = server:
           pkgs.runCommandLocal "hytale-server-${server.name}-files" {
-            nativeBuildInputs = with pkgs; [xorg.lndir];
+            nativeBuildInputs = with pkgs; [lndir];
           } (
             ''
               mkdir -p $out
