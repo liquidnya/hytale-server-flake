@@ -19,7 +19,7 @@ self: {
   inherit (attrsets) mapAttrs mapAttrs' mapAttrsToList nameValuePair;
   inherit (strings) concatStrings;
 
-  flakePkgs = self.packages."${pkgs.stdenv.hostPlatform.system}";
+  flakePkgs = pkgs.extend self.overlays.default;
 
   allMods = {
     inherit (flakePkgs) hytale-discord-integration;
