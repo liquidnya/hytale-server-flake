@@ -99,3 +99,6 @@ inspired by [nix-minecraft](https://github.com/Infinidoge/nix-minecraft), and
 portions of the activation script are derived from
 [home-manager](https://github.com/nix-community/home-manager). All 3 relevant
 MIT licenses of this project can be found in [LICENSE.md](./LICENSE.md).
+
+Note that the nix source code in this project is MIT licensed, but packages within this project can have different licenses (including unfree ones).
+See the `meta.license` property of packages.
