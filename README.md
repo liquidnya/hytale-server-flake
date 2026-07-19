@@ -47,7 +47,8 @@
   };
   ```
 
-For more options, see [modules/hytale-servers.nix](./modules/hytale-servers.nix]).
+For more options, see
+[modules/hytale-servers.nix](./modules/hytale-servers.nix]).
 
 Before starting the server, it's required to run `hytale-server-download` as the
 service user (`hytale` by default) once in order to fetch the server jar and
@@ -64,19 +65,21 @@ This project has the following known issues:
 
 ## Roadmap
 
-- [ ] Add a project-specific CLI to list, start, stop, and attach the terminal to the server process.
-  This will replace the tmux session feature.
+- [ ] Add a project-specific CLI to list, start, stop, and attach the terminal
+      to the server process. This will replace the tmux session feature.
 - [ ] Add selected open-source mods to this flake
-  - [ ] Add [Hytale Discord Integration mod by ErdbeerbaerLP](https://github.com/ErdbeerbaerLP/HT-DiscordIntegration)
-- [ ] Make the downloader service not block or fail when the auth token isn't valid
+  - [ ] Add
+        [Hytale Discord Integration mod by ErdbeerbaerLP](https://github.com/ErdbeerbaerLP/HT-DiscordIntegration)
+- [ ] Make the downloader service not block or fail when the auth token isn't
+      valid
 - [ ] Improve the activation script
   - [ ] cleanup code
   - [ ] support setting permission flags
 
 ## Credits
 
-This project originates from [essegd](https://github.com/essegd) and is largely inspired by
-[nix-minecraft](https://github.com/Infinidoge/nix-minecraft), and portions of
-the activation script are derived from
-[home-manager](https://github.com/nix-community/home-manager).
-All relevant licenses of this project can be found in [COPYING](./COPYING).
+This project originates from [essegd](https://github.com/essegd) and is largely
+inspired by [nix-minecraft](https://github.com/Infinidoge/nix-minecraft), and
+portions of the activation script are derived from
+[home-manager](https://github.com/nix-community/home-manager). All 3 relevant
+MIT licenses of this project can be found in [LICENSE.md](./LICENSE.md).
