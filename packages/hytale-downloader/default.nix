@@ -1,4 +1,5 @@
 {
+  lib,
   outputs,
   stdenv,
   fetchzip,
@@ -12,11 +13,13 @@ in
 
     meta = {
       mainProgram = "hytale-downloader";
+      # this is unfree and not redistributable
+      license = lib.licenses.unfree;
     };
 
     src = fetchzip {
       url = "https://downloader.hytale.com/hytale-downloader.zip";
-      hash = "sha256-I6912E6tIk41WGjH0uvZkQA1FbLdLYDxyKCoRFY5m1I=";
+      hash = "sha256-g7GIhPhQIQXs/5LdAOuHyVjF28gWZ2kmaCk08IdF7ao=";
       stripRoot = false;
     };
 
