@@ -39,8 +39,13 @@
         patchline = "release";
         # tmux.enable = true;
 
+        mods = mods: with mods; [
+          # https://github.com/ErdbeerbaerLP/HT-DiscordIntegration
+          hytale-discord-integration
+        ];
+
         files = {
-          "mods/my-plugin.jar".source = ./my-plugin.jar;
+          "mods/DiscordIntegration_DiscordIntegration/DiscordIntegration.json".source = ./DiscordIntegration.json;
         };
       };
     };
@@ -67,14 +72,25 @@ This project has the following known issues:
 
 - [ ] Add a project-specific CLI to list, start, stop, and attach the terminal
       to the server process. This will replace the tmux session feature.
-- [ ] Add selected open-source mods to this flake
-  - [ ] Add
+- [x] Add selected open-source mods to this flake
+  - [x] Add
         [Hytale Discord Integration mod by ErdbeerbaerLP](https://github.com/ErdbeerbaerLP/HT-DiscordIntegration)
 - [ ] Make the downloader service not block or fail when the auth token isn't
       valid
 - [ ] Improve the activation script
   - [ ] cleanup code
   - [ ] support setting permission flags
+
+## Adding and Updating Hytale Server Mods
+
+To add a hytale server mod to this repository please create a GitHub issue.
+
+To update a hytale server mod you can use:
+
+```bash
+# this will update packages/hytale-discord-integration/deps.json
+bash -c '$(nix build --print-out-paths --no-link .#hytale-discord-integration.mitmCache.updateScript)'
+```
 
 ## Credits
 

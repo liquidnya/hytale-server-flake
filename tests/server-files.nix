@@ -103,11 +103,41 @@ in
             };
           };
         };
+
+        mod-1.configuration = {
+          services.hytale-servers.servers.foobar.mods = mods:
+            with mods; [
+              hytale-discord-integration
+            ];
+        };
+
+        mod-2.configuration = {
+          services.hytale-servers.servers.foobar.mods = mods:
+            with mods; [
+              # adding the same package multiple times
+              # will not cause a build error
+              # since the jars are pointing to the same nix path
+              hytale-discord-integration
+              hytale-discord-integration
+              hytale-discord-integration
+            ];
+        };
+
+        mod-3.configuration = {
+          services.hytale-servers.servers.foobar.mods = with pkgs; [
+            # using a package that does not contain any share/java/*.jar files
+            emptyDirectory
+          ];
+        };
+
+        # FIXME: create a test where a mod contains share/java/test.jar and files."mods/test.jar".source is also set
+        #        this should fail the build
       };
     };
 
     testScript = {nodes, ...}: let
-      buildSpecs = "${nodes.machine.system.build.toplevel}/specialisation";
+      toplevel = nodes.machine.system.build.toplevel;
+      buildSpecs = "${toplevel}/specialisation";
 
       symlink1 = "${buildSpecs}/symlink-1";
       symlink2 = "${buildSpecs}/symlink-2";
@@ -116,8 +146,15 @@ in
       directory1 = "${buildSpecs}/directory-1";
       directory2 = "${buildSpecs}/directory-2";
       fileWithSpaces = "${buildSpecs}/file-with-spaces";
+      mod1 = "${buildSpecs}/mod-1";
+      mod2 = "${buildSpecs}/mod-2";
+      mod3 = "${buildSpecs}/mod-3";
     in ''
       machine.wait_for_unit('default.target')
+
+      with subtest('Empty files'):
+        machine.succeed('${toplevel}/bin/switch-to-configuration test')
+        machine.succeed('test -d /srv/hytale/foobar/Server')
 
       with subtest('Symlink file'):
         machine.succeed('${symlink1}/bin/switch-to-configuration test')
@@ -185,6 +222,34 @@ in
         machine.succeed('cmp "/srv/hytale/foobar/Server/my very cool file with lots of spaces in its name" ${textFile1}')
         machine.succeed('cmp "/srv/hytale/foobar/Server/spatial directory/file-1" ${textFile1}')
         machine.succeed('cmp "/srv/hytale/foobar/Server/spatial directory/file-2" ${textFile2}')
+
+      with subtest('Use the hytale-discord-integration mod'):
+        machine.succeed('${mod1}/bin/switch-to-configuration test')
+
+        # have we got rid of the old directories and files?
+        machine.succeed('test ! -e "/srv/hytale/foobar/Server/my very cool file with lots of spaces in its name"')
+        machine.succeed('test ! -d "/srv/hytale/foobar/Server/spatial directory"')
+
+        # has the jar file been linked?
+        machine.succeed('test -f /srv/hytale/foobar/Server/mods/HT-DiscordIntegration-*.jar')
+        machine.succeed('test -L /srv/hytale/foobar/Server/mods/HT-DiscordIntegration-*.jar')
+
+      with subtest('Using the same package multiple times works'):
+        machine.succeed('${mod2}/bin/switch-to-configuration test')
+
+        # has the jar file been linked?
+        machine.succeed('test -f /srv/hytale/foobar/Server/mods/HT-DiscordIntegration-*.jar')
+        machine.succeed('test -L /srv/hytale/foobar/Server/mods/HT-DiscordIntegration-*.jar')
+
+      with subtest('Use a package in mods that does not contain a jar file'):
+        machine.succeed('${mod3}/bin/switch-to-configuration test')
+
+        # have we got rid of the old file?
+        machine.succeed('test ! -e /srv/hytale/foobar/Server/mods/HT-DiscordIntegration-*.jar')
+
+        # no more mods?
+        machine.succeed('test ! -e /srv/hytale/foobar/Server/mods')
+        machine.succeed('test -d /srv/hytale/foobar/Server')
 
       with subtest('Migrate server with old directory'):
         machine.succeed('rm -r /srv/hytale/foobar/Server')

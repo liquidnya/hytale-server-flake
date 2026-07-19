@@ -1,0 +1,25 @@
+From 421c1fdc30436dc1d3c91ded44b1ced9ff58de44 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alice=20=E2=9C=A8=F0=9F=8C=99=20Luna?= <alice@liquidnya.dev>
+Date: Sun, 19 Jul 2026 19:07:42 +0200
+Subject: [PATCH] Update hytale server to 0.5.6
+
+---
+ build.gradle | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/build.gradle b/build.gradle
+index 4e43cc9..5ba05d5 100644
+--- a/build.gradle
++++ b/build.gradle
+@@ -73,7 +73,7 @@ shadowJar {
+ dependencies {
+     testImplementation platform('org.junit:junit-bom:5.10.0')
+     testImplementation 'org.junit.jupiter:junit-jupiter'
+-    compileOnly("com.hypixel.hytale:Server:0.5.0")
++    compileOnly("com.hypixel.hytale:Server:0.5.6")
+ 
+ 
+     embed('com.vdurmont:emoji-java:5.1.1')
+-- 
+2.54.0
+

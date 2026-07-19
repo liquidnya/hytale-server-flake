@@ -15,6 +15,9 @@ in
       mainProgram = "hytale-downloader";
       # this is unfree and not redistributable
       license = lib.licenses.unfree;
+      sourceProvenance = with lib.sourceTypes; [
+        binaryNativeCode
+      ];
     };
 
     src = fetchzip {

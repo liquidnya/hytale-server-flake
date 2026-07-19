@@ -21,6 +21,13 @@ self: {
 
   flakePkgs = self.packages."${pkgs.stdenv.hostPlatform.system}";
 
+  allMods = {
+    inherit (flakePkgs) hytale-discord-integration;
+  };
+
+  inherit (pkgs) javaPackages;
+  jre = javaPackages.compiler.temurin-bin.jre-25;
+
   cfg = config.services.hytale-servers;
 in {
   options = let
@@ -213,7 +220,7 @@ in {
           in {
             package = mkOption {
               type = types.package;
-              default = pkgs.javaPackages.compiler.temurin-bin.jre-25;
+              default = jre;
               description = ''
                 The package to provide the JVM used by the server.
               '';
@@ -239,6 +246,15 @@ in {
             description = ''
               Files to link from the Nix store into the server data directory upon server start.
               This can be used for declarative server configuration and plugin management.
+            '';
+          };
+
+          mods = mkOption {
+            type = types.coercedTo (types.listOf types.package) lib.const (types.functionTo (types.listOf types.package));
+            default = [];
+            description = ''
+              Packages that contain hytale server mods.
+              The jar files are automatically linked from the share/java directory of the package into the server data directory upon server start.
             '';
           };
         };
@@ -474,10 +490,10 @@ in {
             fi
           '';
 
-          /*
-          TODO properly port the startup script to NixOS. Currently, it does not allow us to set
-          our own JVM options, or separate the server code/assets from the data to be exposed at /srv.
-          */
+          # TODO: Properly port the startup script to NixOS. Currently, it does not allow us to set
+          #       our own JVM options, or separate the server code/assets from the data to be exposed at /srv.
+          #       Furthermore, the backup settings can not be overriden.
+
           serverLaunchCommand = with server; ''
             bash -- "${dataDir}/start.sh" --bind ${listenAddress}:${toString port}
           '';
@@ -567,16 +583,6 @@ in {
               if server.tmux.enable
               then "null"
               else "socket";
-            /*
-            StandardOutput =
-              if server.tmux.enable
-              then "null"
-              else "journal";
-            StandardError =
-              if server.tmux.enable
-              then "null"
-              else "journal";
-            */
             StandardOutput = "journal";
             StandardError = "journal";
             Restart = server.restart;
@@ -651,12 +657,43 @@ in {
                   cp -r "$source" "$pkgDestination"
                 fi
               }
+
+              linkMod() {
+                name=$1
+                path=$2
+
+                for jar in $path/share/java/*.jar; do
+                  file_name="$(basename "$jar")"
+                  pkgDestination="$(realpath -m "$out/mods/$file_name")"
+                  if [ "$pkgDestination" == "$(realpath -m "$jar")" ]; then
+                    # this jar is the same file -> ignore this file
+                    # this happens when a mod is added multiple times or if 2 mods share the same dependency
+                    echo "The hytale server mod package $name contains $file_name." >&2
+                    echo -n "The file $file_name already exists but is identical: " >&2
+                    echo "This either means that you configured the same mod twice or that mods share the same jar dependency." >&2
+                    continue
+                  elif [ -e "$pkgDestination" ]; then
+                    echo "The hytale server mod package $name contains $file_name." >&2
+                    echo -n "The file $file_name already exists: " >&2
+                    echo "Make sure that the configured mods do not conflict and that you are not overriding the file mods/$file_name." >&2
+                    exit 1
+                  fi
+                  mkdir -p "$(dirname "$pkgDestination")"
+                  ln -sfn "$jar" "$pkgDestination"
+                done
+              }
             ''
             + concatStrings (
               mapAttrsToList (_: file: ''
-                linkFile "${file.method}" "${file.source}" "${file.name}"
+                linkFile ${lib.escapeShellArgs [file.method file.source file.name]}
               '')
               server.files
+            )
+            + concatStrings (
+              map (pkg: ''
+                linkMod ${lib.escapeShellArgs [pkg.name pkg]}
+              '')
+              (server.mods allMods)
             )
           );
         serverFilesPackages = mapAttrs (_: server: mkServerFilesPackage server) enabledServers;
@@ -694,10 +731,16 @@ in {
 
               if cmp -s "$prev_file" "$target_file"; then rm -rf "$target_file"; fi
 
-              # remove the directories that have been made empty unless it's the server data root
-              target_base_dir="$(dirname "$target_file")"
-              if [ -d "$target_base_dir" ] && [ "$target_base_dir" != "$target_dir" ]; then
-                rmdir -p --ignore-fail-on-non-empty "$target_base_dir"
+              # remove the directories that have been made empty unless it is the target_dir or a directory below
+              # note that using `rmdir -p` (--parents) all parent directories are deleted if they are empty
+              # so when rmdir -p /srv/hytale/foobar/Server/mods is used,
+              # then /srv/hytale will be attempted to be deleted when both
+              # both /srv/hytale/foobar/Server/mods, /srv/hytale/foobar/Server, and /srv/hytale/foobar are empty
+              # therefore a subshell is used to change into the target directory first
+              # to not delete empty directories below the target_dir
+              dir="$(dirname "$file")"
+              if [ "$dir" != "." ] && [ -d "$target_dir/$dir" ]; then
+                (cd "$target_dir" && rmdir -p --ignore-fail-on-non-empty "$dir")
               fi
             done
           '';
@@ -762,6 +805,8 @@ in {
 
               find -L "${packageGcRootsPath}" \( -type f -or -type l \) -printf '%P\0' \
                 | xargs -0 "${getExe cleanOldFiles}" "${packageGcRootsPath}" "${serverConfigDir}"
+
+              mkdir -p "${serverConfigDir}"
 
               find -L "${pkg}" \( -type f -or -type l \) -printf '%P\0' \
                 | xargs -0 "${getExe linkFiles}" "${pkg}" "${serverConfigDir}"
