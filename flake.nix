@@ -1,7 +1,7 @@
 {
   inputs = {
     flakelight.url = "github:nix-community/flakelight";
-
+    flakelight.inputs.nixpkgs.follows = "nixpkgs";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
@@ -32,7 +32,7 @@
             then "amd64"
             else if name == "aarch64"
             then "arm64"
-            else builtins.throw "Unsupported CPU architecture for Hytale: ${arch}";
+            else throw "Unsupported CPU architecture for Hytale: ${arch}";
 
           os =
             if platform.isLinux
@@ -41,7 +41,7 @@
             then "macos"
             else if (platform.isWindows || platform.isCygwin)
             then "windows"
-            else builtins.throw "Unsupported OS for Hytale: ${os}";
+            else throw "Unsupported OS for Hytale: ${os}";
         in {
           inherit arch os;
         };
