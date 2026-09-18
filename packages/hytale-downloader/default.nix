@@ -9,7 +9,7 @@
 in
   stdenv.mkDerivation {
     pname = "hytale-downloader";
-    version = "2026.01.09-49e5904";
+    version = "2026.05.13-99ade04";
 
     meta = {
       mainProgram = "hytale-downloader";

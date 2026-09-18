@@ -9,7 +9,7 @@
 in
   stdenv.mkDerivation (finalAttrs: {
     pname = "hytale-discord-integration";
-    version = "0.3.2+hytale-0.5.6";
+    version = "0.3.2+hytale-0.6.7";
 
     src = fetchFromGitHub {
       owner = "ErdbeerbaerLP";
@@ -19,7 +19,7 @@ in
     };
 
     patches = [
-      ./0001-Update-hytale-server-to-0.5.6.patch
+      ./0001-Update-hytale-server-to-0.6.7.patch
     ];
 
     nativeBuildInputs = [gradle_9 jdk];
