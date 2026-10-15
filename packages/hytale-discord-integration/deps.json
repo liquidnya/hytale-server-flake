@@ -2,9 +2,9 @@
  "!comment": "This is a nixpkgs Gradle dependency lockfile. For more details, refer to the Gradle section in the nixpkgs manual.",
  "!version": 1,
  "https://maven.hytale.com": {
-  "release/com/hypixel/hytale#Server/0.6.7": {
-   "jar": "sha256-J4oqJUEKtSoc32Y5KB8mYmjrlwraACSaThTMoeG1ykc=",
-   "pom": "sha256-23CQomwmxUCNccLxZuaK+GhDmNFZORzjCjmbRFo0E1c="
+  "release/com/hypixel/hytale#Server/0.7.2": {
+   "jar": "sha256-I/cfA3Y0Is58BN8ZHbSc0OfYfUOxK6rXXEP9wgJBCv8=",
+   "pom": "sha256-DMmhKAJ/8GEV86katnPgZotPNmi3iPglRq/MK4HipGk="
   }
  },
  "https://plugins.gradle.org/m2": {

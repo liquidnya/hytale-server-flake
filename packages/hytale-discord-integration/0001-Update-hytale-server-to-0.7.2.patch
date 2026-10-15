@@ -7,7 +7,7 @@ index 4e43cc9..5ba05d5 100644
      testImplementation platform('org.junit:junit-bom:5.10.0')
      testImplementation 'org.junit.jupiter:junit-jupiter'
 -    compileOnly("com.hypixel.hytale:Server:0.5.0")
-+    compileOnly("com.hypixel.hytale:Server:0.6.7")
++    compileOnly("com.hypixel.hytale:Server:0.7.2")
  
  
      embed('com.vdurmont:emoji-java:5.1.1')
